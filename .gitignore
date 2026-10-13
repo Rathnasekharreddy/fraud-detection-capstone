@@ -1,0 +1,31 @@
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+
+# Raw and processed datasets
+data/raw/
+data/processed/
+
+# Trained model files
+models/*.pkl
+
+# MLflow local tracking files
+mlruns/
+mlflow.db
+mlflow.db-shm
+mlflow.db-wal
+
+# Python test and cache files
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+    
