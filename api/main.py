@@ -12,8 +12,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
-MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "fraud_detection_model.pkl"
-model = joblib.load(MODEL_PATH)
+MODEL_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "models"
+    / "fraud_detection_model.pkl"
+)
+
+# Load the trained model if it is available
+try:
+    model = joblib.load(MODEL_PATH)
+except FileNotFoundError:
+    model = None
 
 
 class Transaction(BaseModel):
@@ -28,18 +37,35 @@ class Transaction(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "Fraud Detection API is running"}
+    return {
+        "message": "Fraud Detection API is running"
+    }
 
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "model_loaded": True}
+    return {
+        "status": "healthy" if model is not None else "model_unavailable",
+        "model_loaded": model is not None,
+    }
 
 
 @app.post("/predict")
 def predict(transaction: Transaction):
+
+    # Check whether the trained model is available
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Fraud detection model is not available",
+        )
+
     allowed_types = {
-        "PAYMENT", "TRANSFER", "CASH_OUT", "DEBIT", "CASH_IN"
+        "PAYMENT",
+        "TRANSFER",
+        "CASH_OUT",
+        "DEBIT",
+        "CASH_IN",
     }
 
     if transaction.type not in allowed_types:
@@ -57,6 +83,7 @@ def predict(transaction: Transaction):
         "newbalanceDest": transaction.newbalanceDest,
     }
 
+    # One-hot encode the transaction type
     for transaction_type in allowed_types:
         row[f"type_{transaction_type}"] = int(
             transaction.type == transaction_type
@@ -64,20 +91,27 @@ def predict(transaction: Transaction):
 
     features = pd.DataFrame([row])
 
+    # Match the feature columns used during model training
     if hasattr(model, "feature_names_in_"):
         features = features.reindex(
             columns=model.feature_names_in_,
             fill_value=0,
         )
 
-    probability = float(model.predict_proba(features)[0, 1])
-    prediction = int(probability >= 0.5)
+    probability = float(
+        model.predict_proba(features)[0, 1]
+    )
+
+    threshold = 0.5
+    prediction = int(probability >= threshold)
 
     return {
         "isFraud": prediction,
         "fraud_probability": round(probability, 4),
         "interpretation": (
-            "Potential fraud" if prediction == 1 else "Likely legitimate"
+            "Potential fraud"
+            if prediction == 1
+            else "Likely legitimate"
         ),
-        "threshold": 0.5,
+        "threshold": threshold,
     }
